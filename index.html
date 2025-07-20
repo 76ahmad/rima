@@ -325,7 +325,9 @@
                 <button class="btn btn-success" onclick="addParticipant()">➕ إضافة مشارك</button>
                 <button class="btn" onclick="generateRandomSchedule()">🎲 جدول عشوائي</button>
                 <button class="btn btn-danger" onclick="clearSchedule()">🗑️ مسح الجدول</button>
-                <button class="btn" onclick="exportSchedule()">📊 تصدير الجدول</button>
+                <button class="btn" onclick="exportSchedule()">📊 تصدير Excel</button>
+                <button class="btn" onclick="exportCSV()">📋 تصدير CSV</button>
+                <button class="btn" onclick="printSchedule()">🖨️ طباعة</button>
             </div>
         </div>
 
@@ -537,17 +539,76 @@
 
         // تصدير الجدول
         function exportSchedule() {
-            let csvContent = "الوقت," + days.join(",") + "\n";
+            // إنشاء جدول HTML للتصدير
+            let htmlTable = `
+                <html dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <style>
+                        table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+                        th, td { border: 1px solid #000; padding: 8px; text-align: center; }
+                        th { background-color: #4facfe; color: white; font-weight: bold; }
+                        .time-slot { background-color: #e3f2fd; font-weight: bold; }
+                        .participant { background-color: #f0f8ff; margin: 2px; padding: 4px; border-radius: 4px; }
+                    </style>
+                </head>
+                <body>
+                    <h2>جدول دورات السباحة</h2>
+                    <table>
+                        <tr>
+                            <th>الوقت</th>
+                            ${days.map(day => `<th>${day}</th>`).join('')}
+                        </tr>`;
             
             times.forEach(time => {
-                let row = time;
+                htmlTable += `<tr><td class="time-slot">${time}</td>`;
                 days.forEach(day => {
-                    row += "," + schedule[time][day].join("; ");
+                    const participants = schedule[time][day];
+                    if (participants.length > 0) {
+                        htmlTable += `<td>${participants.map(p => `<div class="participant">${p}</div>`).join('')}</td>`;
+                    } else {
+                        htmlTable += `<td>-</td>`;
+                    }
+                });
+                htmlTable += `</tr>`;
+            });
+            
+            htmlTable += `</table></body></html>`;
+
+            // إنشاء ملف Excel
+            const blob = new Blob([htmlTable], { 
+                type: 'application/vnd.ms-excel;charset=utf-8' 
+            });
+            
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "swimming_schedule.xls");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // تصدير كـ CSV محسن
+        function exportCSV() {
+            // إضافة BOM للدعم العربي
+            const BOM = '\uFEFF';
+            let csvContent = BOM + "الوقت," + days.join(",") + "\n";
+            
+            times.forEach(time => {
+                let row = `"${time}"`;
+                days.forEach(day => {
+                    const participants = schedule[time][day];
+                    row += `,"${participants.join(' - ')}"`;
                 });
                 csvContent += row + "\n";
             });
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([csvContent], { 
+                type: 'text/csv;charset=utf-8;' 
+            });
+            
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
@@ -556,6 +617,63 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        // طباعة الجدول
+        function printSchedule() {
+            const printWindow = window.open('', '', 'width=800,height=600');
+            printWindow.document.write(`
+                <html dir="rtl">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>جدول دورات السباحة</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        h1 { text-align: center; color: #4facfe; margin-bottom: 30px; }
+                        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+                        th, td { border: 2px solid #333; padding: 10px; text-align: center; }
+                        th { background-color: #4facfe; color: white; font-weight: bold; }
+                        .time-slot { background-color: #e3f2fd; font-weight: bold; }
+                        .participant { background-color: #f0f8ff; margin: 2px; padding: 5px; border-radius: 4px; display: inline-block; }
+                        @media print {
+                            body { margin: 0; }
+                            table { font-size: 12px; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <h1>🏊‍♂️ جدول دورات السباحة</h1>
+                    <table>
+                        <tr>
+                            <th style="width: 100px;">الوقت</th>
+                            ${days.map(day => `<th>${day}</th>`).join('')}
+                        </tr>
+            `);
+            
+            times.forEach(time => {
+                printWindow.document.write(`<tr><td class="time-slot">${time}</td>`);
+                days.forEach(day => {
+                    const participants = schedule[time][day];
+                    if (participants.length > 0) {
+                        printWindow.document.write(`<td>${participants.map(p => `<div class="participant">${p}</div>`).join('')}</td>`);
+                    } else {
+                        printWindow.document.write(`<td style="color: #ccc;">-</td>`);
+                    }
+                });
+                printWindow.document.write(`</tr>`);
+            });
+            
+            printWindow.document.write(`
+                    </table>
+                    <p style="text-align: center; margin-top: 30px; color: #666;">
+                        تم إنشاء هذا الجدول في ${new Date().toLocaleDateString('ar-SA')}
+                    </p>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            printWindow.print();
         }
 
         // التهيئة عند تحميل الصفحة
